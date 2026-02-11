@@ -17,7 +17,8 @@ st.markdown("""
     .stApp { background-color: #0E1117; color: #FAFAFA; }
     .stButton>button { width: 100%; border-radius: 5px; background-color: #262730; color: #ffffff; border: 1px solid #4B4B4B; }
     .stButton>button:hover { border-color: #00FF00; color: #00FF00; }
-    div[data-testid="stExpander"] { border: 1px solid #30363D; border-radius: 5px; }
+    .status-ok { color: #00FF00; font-size: 0.8rem; font-family: monospace; }
+    .status-err { color: #FF4B4B; font-size: 0.8rem; font-family: monospace; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -31,55 +32,59 @@ if not API_KEY:
     st.error("⚠️ CRITICAL: API Key missing. Configure GEMINI_API_KEY in Secrets.")
     st.stop()
 
-# --- BARE METAL API FUNCTION ---
-def query_gemini_api(prompt_text):
+# --- DYNAMIC SERVICE DISCOVERY (The Fix) ---
+@st.cache_resource
+def discover_active_model():
     """
-    Sends a direct HTTP REST request to Google, bypassing the SDK.
-    This is the 'Platform Admin' way to ensure connectivity.
+    Queries Google to find WHICH models are actually available to this API Key.
+    This prevents 404 errors by never guessing the model name.
     """
-    # We use the Stable 1.5 Flash endpoint
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={API_KEY}"
-    
-    headers = {'Content-Type': 'application/json'}
-    payload = {
-        "contents": [{
-            "parts": [{"text": prompt_text}]
-        }]
-    }
-    
+    url = f"https://generativelanguage.googleapis.com/v1beta/models?key={API_KEY}"
     try:
-        response = requests.post(url, headers=headers, data=json.dumps(payload))
+        response = requests.get(url)
+        if response.status_code != 200:
+            return None, f"Error {response.status_code}: {response.text}"
         
-        # Check for HTTP 200 (Success)
-        if response.status_code == 200:
-            return response.json()['candidates'][0]['content']['parts'][0]['text']
-        else:
-            # If 1.5 Flash fails (404), failover to Legacy Pro automatically
-            if response.status_code == 404:
-                return query_gemini_legacy(prompt_text)
-            else:
-                st.error(f"API Error {response.status_code}: {response.text}")
-                return None
+        data = response.json()
+        
+        # Priority list of keywords we want (Newest to Oldest)
+        preferences = ["gemini-1.5-flash", "gemini-2.0-flash", "gemini-1.5-pro", "gemini-1.0-pro", "gemini-pro"]
+        
+        available_models = [m['name'] for m in data.get('models', []) if 'generateContent' in m.get('supportedGenerationMethods', [])]
+        
+        # 1. Try to find a preferred model
+        for pref in preferences:
+            for model in available_models:
+                if pref in model:
+                    return model, "OK"
+        
+        # 2. If no preferred model, just grab the first valid Gemini model
+        for model in available_models:
+            if "gemini" in model:
+                return model, "OK"
                 
-    except Exception as e:
-        st.error(f"Connection Protocol Failure: {e}")
-        return None
+        return None, "NO_VALID_MODELS_FOUND"
 
-def query_gemini_legacy(prompt_text):
-    """Failover to the legacy model endpoint"""
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key={API_KEY}"
-    headers = {'Content-Type': 'application/json'}
-    payload = {"contents": [{"parts": [{"text": prompt_text}]}]}
-    response = requests.post(url, headers=headers, data=json.dumps(payload))
-    if response.status_code == 200:
-        return response.json()['candidates'][0]['content']['parts'][0]['text']
-    else:
-        st.error(f"Legacy Failover Failed {response.status_code}: {response.text}")
-        return None
+    except Exception as e:
+        return None, str(e)
+
+# Run Discovery on App Startup
+ACTIVE_MODEL, STATUS_MSG = discover_active_model()
 
 # --- SIDEBAR ---
 with st.sidebar:
     st.title("🛡️ COMMAND CENTER")
+    
+    # Show Connection Status
+    if ACTIVE_MODEL:
+        st.markdown(f"**System Status:** <span class='status-ok'>ONLINE</span>", unsafe_allow_html=True)
+        st.markdown(f"**Uplink:** `{ACTIVE_MODEL}`")
+    else:
+        st.markdown(f"**System Status:** <span class='status-err'>OFFLINE</span>", unsafe_allow_html=True)
+        st.error(f"Discovery Failed: {STATUS_MSG}")
+    
+    st.divider()
+    
     selected_domain = st.selectbox(
         "Select Target Domain:",
         [
@@ -94,33 +99,63 @@ with st.sidebar:
         ]
     )
     difficulty = st.select_slider("Simulation Difficulty", options=["Associate", "Professional", "Chief Architect"])
-    st.divider()
-    st.caption("Protocol: **REST / HTTP 1.1**")
+
+# --- API FUNCTION ---
+def query_gemini_direct(prompt_text):
+    if not ACTIVE_MODEL:
+        st.error("Cannot execute: No active model found.")
+        return None
+
+    # Use the discovered model name directly
+    # Note: ACTIVE_MODEL usually comes as "models/gemini-1.5-flash" so we just use it
+    url = f"https://generativelanguage.googleapis.com/v1beta/{ACTIVE_MODEL}:generateContent?key={API_KEY}"
+    
+    headers = {'Content-Type': 'application/json'}
+    payload = {
+        "contents": [{
+            "parts": [{"text": prompt_text}]
+        }]
+    }
+    
+    try:
+        response = requests.post(url, headers=headers, data=json.dumps(payload))
+        
+        if response.status_code == 200:
+            return response.json()['candidates'][0]['content']['parts'][0]['text']
+        else:
+            st.error(f"Generation Error {response.status_code}: {response.text}")
+            return None
+    except Exception as e:
+        st.error(f"Protocol Failure: {e}")
+        return None
 
 # --- MAIN APP ---
 st.title("CYBERPREP // AI")
 st.markdown("### GRC & Security Architecture Simulator")
 
 if st.button("GENERATE NEW SCENARIO"):
-    with st.spinner("Transmitting Payload to Neural Network..."):
-        prompt = f"""
-        Act as a CISSP exam creator. Create a {difficulty}-level scenario for: {selected_domain}.
-        Format exactly as:
-        **SCENARIO:** [Text]
-        **QUESTION:** [Text]
-        **OPTIONS:**
-        A) [Text]
-        B) [Text]
-        C) [Text]
-        D) [Text]
-        ---
-        **CORRECT ANSWER:** [Letter]
-        **EXPLANATION:** [Text]
-        """
-        
-        result = query_gemini_api(prompt)
-        if result:
-            st.session_state.current_question = result
+    if not ACTIVE_MODEL:
+        st.error("Mission Aborted: System Offline")
+    else:
+        with st.spinner(f"Contacting {ACTIVE_MODEL}..."):
+            prompt = f"""
+            Act as a CISSP exam creator. Create a {difficulty}-level scenario for: {selected_domain}.
+            Format exactly as:
+            **SCENARIO:** [Text]
+            **QUESTION:** [Text]
+            **OPTIONS:**
+            A) [Text]
+            B) [Text]
+            C) [Text]
+            D) [Text]
+            ---
+            **CORRECT ANSWER:** [Letter]
+            **EXPLANATION:** [Text]
+            """
+            
+            result = query_gemini_direct(prompt)
+            if result:
+                st.session_state.current_question = result
 
 # --- DISPLAY ---
 if "current_question" in st.session_state and st.session_state.current_question:
