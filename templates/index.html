@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CyberPrep AI | CISSP Study Assistant</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <link href="[https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&display=swap](https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&display=swap)" rel="stylesheet">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <div class="status-bar">
+                <span class="status-dot"></span> SYSTEM ONLINE
+            </div>
+            <h1>CISSP <span class="highlight">INTELLIGENCE</span> HUB</h1>
+            <p>AI-Driven GRC & Security Architecture Scenarios</p>
+        </header>
+
+        <main>
+            <div class="controls">
+                <label for="domain-select">Target Domain:</label>
+                <select id="domain-select">
+                    <option value="Security and Risk Management">1. Security & Risk Management</option>
+                    <option value="Asset Security">2. Asset Security</option>
+                    <option value="Security Architecture and Engineering">3. Security Architecture & Engineering</option>
+                    <option value="Communication and Network Security">4. Comm & Network Security</option>
+                    <option value="Identity and Access Management">5. IAM</option>
+                    <option value="Security Assessment and Testing">6. Security Assessment & Testing</option>
+                    <option value="Security Operations">7. Security Operations</option>
+                    <option value="Software Development Security">8. Software Development Security</option>
+                </select>
+                <button id="gen-btn" onclick="fetchQuestion()">INITIALIZE SCENARIO</button>
+            </div>
+
+            <div id="loading" class="hidden">
+                <div class="loader"></div>
+                <p>Querying Neural Network...</p>
+            </div>
+
+            <div id="question-card" class="card hidden">
+                <h3 id="q-text"></h3>
+                <div id="options-container" class="options-grid"></div>
+                
+                <div id="result-area" class="hidden">
+                    <div id="verdict"></div>
+                    <p id="explanation"></p>
+                </div>
+            </div>
+        </main>
+        
+        <footer>
+            <p>Developed for Platform Admin & GRC Research</p>
+        </footer>
+    </div>
+    <script src="{{ url_for('static', filename='script.js') }}"></script>
+</body>
+</html>
