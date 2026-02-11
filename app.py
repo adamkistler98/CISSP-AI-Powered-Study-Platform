@@ -47,8 +47,7 @@ if not API_KEY:
     st.stop()
 
 genai.configure(api_key=API_KEY)
-# Use the stable 1.5 Flash model (Free, Fast, No Credit Card needed)
-model = genai.GenerativeModel('gemini-1.5-flash')
+model = genai.GenerativeModel('gemini-pro')
 
 # --- SESSION STATE ---
 if "current_question" not in st.session_state:
