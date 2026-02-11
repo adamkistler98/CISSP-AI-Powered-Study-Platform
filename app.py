@@ -1,5 +1,5 @@
 import streamlit as st
-import google.generativeai as genai
+from google import genai
 import os
 
 # --- PAGE CONFIGURATION ---
@@ -10,54 +10,34 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# --- CUSTOM STYLING (Dark Mode Optimization) ---
+# --- CUSTOM STYLING ---
 st.markdown("""
 <style>
-    .stApp {
-        background-color: #0E1117;
-        color: #FAFAFA;
-    }
-    .stButton>button {
-        width: 100%;
-        border-radius: 5px;
-        background-color: #262730;
-        color: #ffffff;
-        border: 1px solid #4B4B4B;
-    }
-    .stButton>button:hover {
-        border-color: #00FF00;
-        color: #00FF00;
-    }
-    div[data-testid="stExpander"] {
-        border: 1px solid #30363D;
-        border-radius: 5px;
-    }
+    .stApp { background-color: #0E1117; color: #FAFAFA; }
+    .stButton>button { width: 100%; border-radius: 5px; background-color: #262730; color: #ffffff; border: 1px solid #4B4B4B; }
+    .stButton>button:hover { border-color: #00FF00; color: #00FF00; }
+    div[data-testid="stExpander"] { border: 1px solid #30363D; border-radius: 5px; }
 </style>
 """, unsafe_allow_html=True)
 
-# --- API SETUP ---
-# Try to get key from Streamlit Secrets (Cloud) or Environment (Local)
+# --- API SETUP (NEW SDK) ---
 try:
-    API_KEY = st.secrets["GEMINI_API_KEY"]
+    # Try getting key from Streamlit Secrets first
+    api_key = st.secrets["GEMINI_API_KEY"]
 except (FileNotFoundError, KeyError):
-    API_KEY = os.getenv("GEMINI_API_KEY")
+    # Fallback to local environment variable
+    api_key = os.getenv("GEMINI_API_KEY")
 
-if not API_KEY:
+if not api_key:
     st.error("⚠️ SYSTEM ALERT: API Key missing. Please configure GEMINI_API_KEY in Streamlit Secrets.")
     st.stop()
 
-genai.configure(api_key=API_KEY)
-model = genai.GenerativeModel('gemini-pro')
-
-# --- SESSION STATE ---
-if "current_question" not in st.session_state:
-    st.session_state.current_question = None
+# Initialize the new Client
+client = genai.Client(api_key=api_key)
 
 # --- SIDEBAR ---
 with st.sidebar:
     st.title("🛡️ COMMAND CENTER")
-    st.caption("CISSP | CCSP | CISM Prep")
-    
     selected_domain = st.selectbox(
         "Select Target Domain:",
         [
@@ -71,77 +51,55 @@ with st.sidebar:
             "8. Software Development Security"
         ]
     )
-    
-    difficulty = st.select_slider(
-        "Simulation Difficulty",
-        options=["Associate", "Professional", "Chief Architect"]
-    )
-    
+    difficulty = st.select_slider("Simulation Difficulty", options=["Associate", "Professional", "Chief Architect"])
     st.divider()
-    st.info(f"Mode: **{difficulty}**\n\nSystem Status: **ONLINE**")
+    st.caption("System Status: **ONLINE**")
 
-# --- MAIN APP LOGIC ---
+# --- MAIN APP ---
 st.title("CYBERPREP // AI")
 st.markdown("### GRC & Security Architecture Simulator")
 
-def generate_scenario():
-    with st.spinner("Initializing Neural Network... Analyzing Compliance Standards..."):
+if st.button("GENERATE NEW SCENARIO"):
+    with st.spinner("Initializing Neural Network..."):
         prompt = f"""
-        Act as a strict CISSP exam board creator. 
-        Create a {difficulty}-level scenario question for the domain: {selected_domain}.
-        
-        The question must require critical thinking, not just memorization.
-        Include references to specific NIST SP 800-series or ISO 27001 controls where relevant.
-        
-        Format the output exactly like this:
-        **SCENARIO:** [The scenario text]
-        
-        **QUESTION:** [The question text]
-        
+        Act as a CISSP exam creator. Create a {difficulty}-level scenario for: {selected_domain}.
+        Format exactly as:
+        **SCENARIO:** [Text]
+        **QUESTION:** [Text]
         **OPTIONS:**
-        A) [Option A]
-        B) [Option B]
-        C) [Option C]
-        D) [Option D]
-        
+        A) [Text]
+        B) [Text]
+        C) [Text]
+        D) [Text]
         ---
-        **CORRECT ANSWER:** [Option Letter]
-        **EXPLANATION:** [Detailed justification explaining why the wrong answers are wrong, citing standards]
+        **CORRECT ANSWER:** [Letter]
+        **EXPLANATION:** [Text]
         """
         
         try:
-            response = model.generate_content(prompt)
+            # NEW SDK CALL SYNTAX
+            response = client.models.generate_content(
+                model='gemini-2.0-flash', 
+                contents=prompt
+            )
             st.session_state.current_question = response.text
         except Exception as e:
-            st.error(f"API Connection Failed: {e}")
+            # Fallback to stable model if Flash fails
+            try:
+                response = client.models.generate_content(
+                    model='gemini-1.5-flash', 
+                    contents=prompt
+                )
+                st.session_state.current_question = response.text
+            except Exception as e2:
+                st.error(f"Connection Failed: {str(e2)}")
 
-if st.button("GENERATE NEW SCENARIO"):
-    generate_scenario()
-
-# --- DISPLAY AREA ---
-if st.session_state.current_question:
-    # We split the response to hide the answer initially
-    # This assumes the AI follows the format "---" requested in the prompt
+# --- DISPLAY ---
+if "current_question" in st.session_state and st.session_state.current_question:
     try:
         parts = st.session_state.current_question.split("---")
-        question_part = parts[0]
-        answer_part = parts[1] if len(parts) > 1 else "Analysis generation failed. Check raw output."
-        
-        st.markdown("---")
-        st.markdown(question_part)
-        
-        st.markdown("### 🔐 Decryption Key")
-        with st.expander("REVEAL OFFICIAL ANSWER & ANALYSIS"):
-            st.markdown(answer_part)
-            
-    except Exception:
-        st.warning("Raw Output (Parsing failed but data is valid):")
-        st.write(st.session_state.current_question)
-
-else:
-    st.markdown("""
-    <div style="text-align: center; color: #555; margin-top: 50px;">
-        AWAITING INPUT...<br>
-        SELECT DOMAIN AND INITIALIZE SCENARIO
-    </div>
-    """, unsafe_allow_html=True)
+        st.markdown(parts[0])
+        with st.expander("REVEAL OFFICIAL ANSWER"):
+            st.markdown(parts[1] if len(parts) > 1 else "Check raw output.")
+    except:
+        st.markdown(st.session_state.current_question)
