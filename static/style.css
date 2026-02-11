@@ -1,0 +1,112 @@
+:root {
+    --bg-color: #0d1117;
+    --card-bg: #161b22;
+    --text-primary: #c9d1d9;
+    --accent: #58a6ff;
+    --success: #238636;
+    --danger: #da3633;
+    --border: #30363d;
+}
+
+body {
+    background-color: var(--bg-color);
+    color: var(--text-primary);
+    font-family: 'JetBrains Mono', monospace;
+    margin: 0;
+    display: flex;
+    justify-content: center;
+    min-height: 100vh;
+}
+
+.container {
+    width: 100%;
+    max-width: 800px;
+    padding: 2rem;
+}
+
+header {
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 2rem;
+    padding-bottom: 1rem;
+}
+
+.highlight { color: var(--accent); }
+
+.status-dot {
+    height: 10px;
+    width: 10px;
+    background-color: var(--success);
+    border-radius: 50%;
+    display: inline-block;
+    box-shadow: 0 0 10px var(--success);
+}
+
+.controls {
+    display: flex;
+    gap: 1rem;
+    margin-bottom: 2rem;
+    flex-wrap: wrap;
+}
+
+select, button {
+    padding: 1rem;
+    background: var(--card-bg);
+    border: 1px solid var(--border);
+    color: white;
+    font-family: inherit;
+    border-radius: 6px;
+    cursor: pointer;
+}
+
+button {
+    background: var(--success);
+    border: none;
+    font-weight: bold;
+    flex-grow: 1;
+}
+
+button:hover { opacity: 0.9; }
+
+.card {
+    background: var(--card-bg);
+    border: 1px solid var(--border);
+    padding: 2rem;
+    border-radius: 8px;
+}
+
+.options-grid {
+    display: grid;
+    gap: 1rem;
+    margin-top: 1.5rem;
+}
+
+.option-btn {
+    background: var(--bg-color);
+    text-align: left;
+    transition: all 0.2s;
+}
+
+.option-btn:hover { border-color: var(--accent); }
+
+.correct { border-color: var(--success); background: rgba(35, 134, 54, 0.1); }
+.wrong { border-color: var(--danger); background: rgba(218, 54, 51, 0.1); }
+
+#result-area {
+    margin-top: 2rem;
+    padding-top: 1rem;
+    border-top: 1px solid var(--border);
+}
+
+.hidden { display: none; }
+
+.loader {
+    width: 20px;
+    height: 20px;
+    border: 3px solid var(--border);
+    border-top: 3px solid var(--accent);
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+    margin: 0 auto;
+}
+
+@keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
