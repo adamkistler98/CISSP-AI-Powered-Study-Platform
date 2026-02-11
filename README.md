@@ -38,3 +38,11 @@ Unlike static question banks, this tool leverages **Generative AI (Google Gemini
 ```bash
 git clone [https://gitlab.com/your-username/cissp-architect.git](https://gitlab.com/your-username/cissp-architect.git)
 cd cissp-architect
+
+├── app.py                # Main application logic & Circuit Breaker
+├── requirements.txt      # Lightweight dependencies (Streamlit, Requests)
+├── .gitignore            # Security exclusions
+└── README.md             # Documentation
+
+Ini, TOML
+GEMINI_API_KEY=your_actual_api_key_here
