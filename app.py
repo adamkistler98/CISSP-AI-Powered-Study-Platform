@@ -3,39 +3,65 @@ import requests
 import json
 import os
 import random
+import time
 
 # --- PAGE CONFIGURATION ---
 st.set_page_config(
-    page_title="CyberPrep AI | CISSP Architect",
-    page_icon="🛡️",
-    layout="centered",
+    page_title="STRATAGEM | GRC Intel",
+    page_icon="📡",
+    layout="wide",
     initial_sidebar_state="expanded"
 )
 
-# --- CUSTOM STYLING ---
-st.markdown("""
-<style>
-    .stApp { background-color: #0E1117; color: #FAFAFA; }
-    .stButton>button { width: 100%; border-radius: 5px; background-color: #262730; color: #ffffff; border: 1px solid #4B4B4B; }
-    .stButton>button:hover { border-color: #00FF00; color: #00FF00; }
-    .status-ok { color: #00FF00; font-size: 0.8rem; font-family: monospace; }
-    .status-warn { color: #FFA500; font-size: 0.8rem; font-family: monospace; }
-    .status-err { color: #FF4B4B; font-size: 0.8rem; font-family: monospace; }
-</style>
-""", unsafe_allow_html=True)
+# --- STEALTH MODE LOGIC ---
+if "stealth_mode" not in st.session_state:
+    st.session_state.stealth_mode = False
 
-# --- OFFLINE BACKUP DATABASE (The Circuit Breaker) ---
-# If the API fails, we serve one of these.
-BACKUP_QUESTIONS = [
-    {
-        "text": "**SCENARIO:** A security architect is designing a solution for a company that requires strict separation of duties (SoD) for its cryptographic key management lifecycle. The company wants to ensure that no single individual can generate, distribute, and archive keys.\n\n**QUESTION:** Which of the following concepts BEST addresses this requirement?\n\n**OPTIONS:**\nA) Split Knowledge\nB) Key Escrow\nC) M of N Control\nD) Dual Control\n---\n**CORRECT ANSWER:** A\n**EXPLANATION:** Split Knowledge requires that the knowledge of a key be split among multiple individuals so that no single person knows the entire key. M of N control is a specific implementation of this, but Split Knowledge is the governing concept for preventing single-person knowledge."
-    },
-    {
-        "text": "**SCENARIO:** During a disaster recovery audit, the GRC team notes that the organization has a low tolerance for data loss but can tolerate a longer recovery time for non-critical systems. The transaction logs are backed up every 5 minutes.\n\n**QUESTION:** Which metric is MOST likely being prioritized in this scenario?\n\n**OPTIONS:**\nA) RTO (Recovery Time Objective)\nB) RPO (Recovery Point Objective)\nC) MTD (Maximum Tolerable Downtime)\nD) MTBF (Mean Time Between Failures)\n---\n**CORRECT ANSWER:** B\n**EXPLANATION:** The Recovery Point Objective (RPO) defines the maximum amount of data (measured in time) that the organization is willing to lose. Backing up logs every 5 minutes indicates a strict RPO."
-    },
-    {
-        "text": "**SCENARIO:** An organization is implementing a mandatory access control (MAC) system based on the Bell-LaPadula model. A user with 'Secret' clearance attempts to read a document classified as 'Top Secret'.\n\n**QUESTION:** Which property of the Bell-LaPadula model prevents this action?\n\n**OPTIONS:**\nA) Simple Security Property (No Read Up)\nB) *-Property (No Write Down)\nC) Strong Star Property\nD) Discretionary Access Property\n---\n**CORRECT ANSWER:** A\n**EXPLANATION:** The Simple Security Property (ss-property) in Bell-LaPadula states 'No Read Up'. A subject at a lower security level (Secret) cannot read an object at a higher security level (Top Secret)."
-    }
+def toggle_stealth():
+    st.session_state.stealth_mode = not st.session_state.stealth_mode
+
+# --- CUSTOM CSS (Dynamic) ---
+if st.session_state.stealth_mode:
+    # BORING MODE (Looks like server logs)
+    st.markdown("""
+    <style>
+        .stApp { background-color: #f0f2f6; color: #333; font-family: monospace; }
+        .stButton>button { background-color: #e0e0e0; color: #000; border: 1px solid #ccc; }
+        .highlight { color: #000; font-weight: bold; }
+        .status-ok { color: green; }
+        .status-err { color: red; }
+    </style>
+    """, unsafe_allow_html=True)
+else:
+    # COOL CYBER MODE
+    st.markdown("""
+    <style>
+        .stApp { background-color: #0E1117; color: #00FF41; font-family: 'Courier New', monospace; }
+        .stButton>button { width: 100%; border-radius: 0px; background-color: #000; color: #00FF41; border: 1px solid #00FF41; }
+        .stButton>button:hover { background-color: #003300; box-shadow: 0 0 10px #00FF41; }
+        .stSelectbox, .stSlider { color: #00FF41; }
+        div[data-testid="stExpander"] { border: 1px solid #00FF41; border-radius: 0px; background-color: #000; }
+        h1, h2, h3 { color: #FAFAFA; text-shadow: 0 0 5px #00FF41; }
+        .status-ok { color: #00FF41; }
+        .status-err { color: #FF0000; }
+    </style>
+    """, unsafe_allow_html=True)
+
+# --- EXPANDED LOCAL DATABASE (The "Offline" Fix) ---
+# Now contains 15+ questions so "Backup Mode" isn't boring.
+BACKUP_DB = [
+    {"type": "Multiple Choice", "text": "**SCENARIO:** SoD requires separation of cryptographic key duties.\n**QUESTION:** Which concept BEST addresses this?\n**OPTIONS:**\nA) Split Knowledge\nB) Key Escrow\nC) M of N Control\nD) Dual Control\n---\n**CORRECT:** A\n**WHY:** Split Knowledge ensures no single person knows the whole key."},
+    {"type": "Multiple Choice", "text": "**SCENARIO:** Logs are backed up every 5 minutes.\n**QUESTION:** Which metric is prioritized?\n**OPTIONS:**\nA) RTO\nB) RPO\nC) MTD\nD) MTBF\n---\n**CORRECT:** B\n**WHY:** RPO defines data loss tolerance (time)."},
+    {"type": "Multiple Choice", "text": "**SCENARIO:** User with 'Secret' clearance tries to read 'Top Secret'.\n**QUESTION:** Bell-LaPadula property preventing this?\n**OPTIONS:**\nA) Simple Security (No Read Up)\nB) *-Property (No Write Down)\nC) Strong Star\nD) Discretionary Access\n---\n**CORRECT:** A\n**WHY:** Simple Security Property forbids reading up."},
+    {"type": "True/False", "text": "**SCENARIO:** An organization uses a warming site for DR.\n**QUESTION:** True or False: A warm site contains fully operational hardware and real-time data replication.\n---\n**CORRECT:** False\n**WHY:** That describes a 'Hot Site'. A warm site has hardware but requires data restoration."},
+    {"type": "Multiple Choice", "text": "**SCENARIO:** Implementing OAuth 2.0 for API security.\n**QUESTION:** Which grant type is BEST for a mobile app without a backend server?\n**OPTIONS:**\nA) Authorization Code\nB) Implicit\nC) Client Credentials\nD) PKCE\n---\n**CORRECT:** D (PKCE)\n**WHY:** Authorization Code with PKCE is the modern standard for public clients (mobile apps) to prevent interception."},
+    {"type": "Multiple Choice", "text": "**SCENARIO:** Configuring a firewall. You want to block all traffic that is not explicitly allowed.\n**QUESTION:** What is this principle called?\n**OPTIONS:**\nA) Implicit Deny\nB) Explicit Allow\nC) Statefull Inspection\nD) Least Privilege\n---\n**CORRECT:** A\n**WHY:** Implicit Deny ensures anything not on the list is blocked by default."},
+    {"type": "Executive Brief", "text": "**SCENARIO:** The CEO asks why we need to move from DES to AES encryption.\n**QUESTION:** In one sentence, what is the primary vulnerability of DES?\n---\n**CORRECT:** Key space is too small (56-bit).\n**WHY:** DES can be brute-forced in hours due to short key length. AES uses 128/256-bit keys."},
+    {"type": "Multiple Choice", "text": "**SCENARIO:** Assessing a cloud provider (SaaS). Who is responsible for patching the Guest OS?\n**OPTIONS:**\nA) The Customer\nB) The Provider\nC) Shared\nD) The Auditor\n---\n**CORRECT:** B\n**WHY:** In SaaS, the provider manages everything up to the application layer, including the OS."},
+    {"type": "Multiple Choice", "text": "**SCENARIO:** A hacker uses a 'Pass the Hash' attack.\n**QUESTION:** Which protocol is primarily vulnerable to this?\n**OPTIONS:**\nA) Kerberos\nB) NTLM\nC) SAML\nD) OIDC\n---\n**CORRECT:** B\n**WHY:** NTLM does not salt the hash, allowing attackers to replay it without cracking it."},
+    {"type": "True/False", "text": "**SCENARIO:** You are conducting a Black Box penetration test.\n**QUESTION:** True or False: You are provided with full network diagrams and source code.\n---\n**CORRECT:** False\n**WHY:** Black Box means zero prior knowledge. White Box provides diagrams/code."},
+    {"type": "Multiple Choice", "text": "**SCENARIO:** Implementing a DLP solution to stop credit card data exfiltration.\n**QUESTION:** Looking for the pattern '4xxx-xxxx-xxxx-xxxx' is an example of?\n**OPTIONS:**\nA) Regular Expression (Regex) Matching\nB) Exact File Matching\nC) Fingerprinting\nD) Heuristic Analysis\n---\n**CORRECT:** A\n**WHY:** Regex finds patterns. Exact matching looks for specific file hashes."},
+    {"type": "Multiple Choice", "text": "**SCENARIO:** A developer wants to ensure code integrity before deployment.\n**QUESTION:** Which tool is best?\n**OPTIONS:**\nA) Code Signing\nB) TLS\nC) Hashing\nD) Obfuscation\n---\n**CORRECT:** A\n**WHY:** Code Signing uses a digital signature to prove identity and integrity."},
 ]
 
 # --- API SETUP ---
@@ -44,127 +70,112 @@ try:
 except (FileNotFoundError, KeyError):
     API_KEY = os.getenv("GEMINI_API_KEY")
 
-if not API_KEY:
-    st.error("⚠️ CRITICAL: API Key missing. Configure GEMINI_API_KEY in Secrets.")
-    st.stop()
-
-# --- DYNAMIC SERVICE DISCOVERY ---
-@st.cache_resource
-def discover_active_model():
-    """Finds the best available model, strictly avoiding restricted 'limit: 0' models."""
-    url = f"https://generativelanguage.googleapis.com/v1beta/models?key={API_KEY}"
-    try:
-        response = requests.get(url)
-        if response.status_code != 200:
-            return None, f"Error {response.status_code}"
-        
-        data = response.json()
-        available_models = [m['name'] for m in data.get('models', []) if 'generateContent' in m.get('supportedGenerationMethods', [])]
-        
-        # Priority: Try 1.5 Pro first (different quota bucket than Flash), then Flash
-        preferences = ["gemini-1.5-pro", "gemini-1.5-flash", "gemini-1.0-pro", "gemini-pro"]
-        
-        for pref in preferences:
-            for model in available_models:
-                if pref in model:
-                    return model, "OK"
-        return None, "NO_VALID_MODELS"
-    except Exception as e:
-        return None, str(e)
-
-ACTIVE_MODEL, STATUS_MSG = discover_active_model()
-
 # --- SIDEBAR ---
 with st.sidebar:
-    st.title("🛡️ COMMAND CENTER")
+    st.title("📡 INTEL FEED")
     
-    if ACTIVE_MODEL:
-        display_name = ACTIVE_MODEL.replace("models/", "")
-        st.markdown(f"**Primary Uplink:** <span class='status-ok'>{display_name}</span>", unsafe_allow_html=True)
-    else:
-        st.markdown(f"**Primary Uplink:** <span class='status-err'>OFFLINE</span>", unsafe_allow_html=True)
+    # Stealth Toggle
+    st.toggle("STEALTH MODE (BOSS KEY)", value=st.session_state.stealth_mode, on_change=toggle_stealth)
     
-    st.markdown("**Backup Protocol:** <span class='status-ok'>READY</span>", unsafe_allow_html=True)
     st.divider()
     
-    selected_domain = st.selectbox(
-        "Select Target Domain:",
-        [
-            "1. Security & Risk Management",
-            "2. Asset Security",
-            "3. Security Architecture & Engineering",
-            "4. Communication & Network Security",
-            "5. Identity & Access Management (IAM)",
-            "6. Security Assessment & Testing",
-            "7. Security Operations",
-            "8. Software Development Security"
-        ]
-    )
-    difficulty = st.select_slider("Simulation Difficulty", options=["Associate", "Professional", "Chief Architect"])
-
-# --- API FUNCTION WITH CIRCUIT BREAKER ---
-def query_gemini_resilient(prompt_text):
-    # 1. If Primary Uplink is down, go straight to backup
-    if not ACTIVE_MODEL:
-        return random.choice(BACKUP_QUESTIONS)["text"], "BACKUP_MODE"
-
-    url = f"https://generativelanguage.googleapis.com/v1beta/{ACTIVE_MODEL}:generateContent?key={API_KEY}"
-    headers = {'Content-Type': 'application/json'}
-    payload = {"contents": [{"parts": [{"text": prompt_text}]}]}
+    # Controls
+    domain = st.selectbox("Domain:", [
+        "1. Security & Risk Management", "2. Asset Security", 
+        "3. Security Architecture", "4. Network Security", 
+        "5. IAM", "6. Assessment & Testing", 
+        "7. Sec Operations", "8. Software Sec"
+    ])
     
-    try:
-        response = requests.post(url, headers=headers, data=json.dumps(payload))
+    difficulty = st.select_slider("Threat Level:", 
+        options=["Script Kiddie", "Professional", "CISO", "Nation State Actor"])
         
-        # 2. SUCCESS: API worked
-        if response.status_code == 200:
-            return response.json()['candidates'][0]['content']['parts'][0]['text'], "ONLINE"
-            
-        # 3. FAIL: Quota Limit (429) or Server Error (5xx) -> TRIGGER CIRCUIT BREAKER
-        elif response.status_code in [429, 500, 502, 503]:
-            return random.choice(BACKUP_QUESTIONS)["text"], "BACKUP_MODE"
-            
-        else:
-            return f"Error {response.status_code}: {response.text}", "ERROR"
-            
-    except Exception as e:
-        # 4. NETWORK FAIL -> TRIGGER CIRCUIT BREAKER
-        return random.choice(BACKUP_QUESTIONS)["text"], "BACKUP_MODE"
+    q_type = st.selectbox("Format:", ["Multiple Choice", "True/False", "Executive Brief"])
+    
+    st.divider()
+    
+    # Connection Status
+    if API_KEY:
+        st.caption("Uplink: **ENCRYPTED**")
+    else:
+        st.error("Uplink: **MISSING KEYS**")
 
-# --- MAIN APP ---
-st.title("CYBERPREP // AI")
-st.markdown("### GRC & Security Architecture Simulator")
-
-if st.button("GENERATE NEW SCENARIO"):
-    with st.spinner(f"Contacting Neural Network..."):
-        prompt = f"""
-        Act as a CISSP exam creator. Create a {difficulty}-level scenario for: {selected_domain}.
-        Format exactly as:
-        **SCENARIO:** [Text]
-        **QUESTION:** [Text]
-        **OPTIONS:**
-        A) [Text]
-        B) [Text]
-        C) [Text]
-        D) [Text]
-        ---
-        **CORRECT ANSWER:** [Letter]
-        **EXPLANATION:** [Text]
-        """
-        
-        result, source = query_gemini_resilient(prompt)
-        
-        if source == "BACKUP_MODE":
-            st.warning("⚠️ NOTICE: API High Traffic / Limit Reached. Utilizing Local Encrypted Backup Database.")
+# --- GENERATION LOGIC ---
+def get_intel():
+    # 1. Try API First
+    if API_KEY:
+        try:
+            # We force 1.5 Flash (Highest Free Quota)
+            url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={API_KEY}"
             
-        if result:
-            st.session_state.current_question = result
+            prompt_map = {
+                "Multiple Choice": "Format: Question + 4 Options (A-D) + Answer/Explanation.",
+                "True/False": "Format: Statement + True/False Options + Correct Answer.",
+                "Executive Brief": "Format: Scenario + Open Ended Question + Model Answer."
+            }
+            
+            prompt = f"""
+            Role: CISSP Exam Proctor.
+            Task: Create a unique {difficulty} difficulty question.
+            Topic: {domain}.
+            Type: {q_type}.
+            {prompt_map[q_type]}
+            
+            Output strictly as:
+            **SCENARIO:** [Text]
+            **QUESTION:** [Text]
+            **OPTIONS:** [List if applicable]
+            ---
+            **CORRECT:** [Answer]
+            **WHY:** [Explanation with NIST/ISO reference]
+            """
+            
+            payload = {"contents": [{"parts": [{"text": prompt}]}]}
+            response = requests.post(url, json=payload, headers={'Content-Type': 'application/json'})
+            
+            if response.status_code == 200:
+                return response.json()['candidates'][0]['content']['parts'][0]['text'], "LIVE_FEED"
+        except:
+            pass # Fail silently to backup
+            
+    # 2. Backup Logic (Circuit Breaker)
+    # Filter DB by type to make it look smarter
+    filtered_db = [q for q in BACKUP_DB if q['type'] == q_type]
+    if not filtered_db: filtered_db = BACKUP_DB # Fallback to all if type match fails
+    
+    selection = random.choice(filtered_db)
+    return selection['text'], "LOCAL_CACHE"
+
+# --- MAIN INTERFACE ---
+if st.session_state.stealth_mode:
+    st.header("SYSTEM LOGS: /var/log/audit.d")
+else:
+    st.title("STRATAGEM // GRC NEXUS")
+    st.markdown("### 🛡️ Adaptive Learning Architecture")
+
+if st.button("INITIATE SEQUENCE" if not st.session_state.stealth_mode else "Refresh Logs"):
+    with st.spinner("Decrypting..." if not st.session_state.stealth_mode else "Loading..."):
+        # Artificial delay for drama (and to prevent double-clicking)
+        time.sleep(0.5) 
+        result, source = get_intel()
+        st.session_state.current_intel = result
+        st.session_state.source = source
 
 # --- DISPLAY ---
-if "current_question" in st.session_state and st.session_state.current_question:
+if "current_intel" in st.session_state:
+    # Source Indicator
+    if not st.session_state.stealth_mode:
+        if st.session_state.source == "LIVE_FEED":
+            st.markdown("`<small style='color:#00FF41'>[●] LIVE SATELLITE FEED</small>`", unsafe_allow_html=True)
+        else:
+            st.markdown("`<small style='color:#FFA500'>[⚠] OFFLINE CACHE (API LIMIT REACHED)</small>`", unsafe_allow_html=True)
+
+    # Content
     try:
-        parts = st.session_state.current_question.split("---")
+        parts = st.session_state.current_intel.split("---")
         st.markdown(parts[0])
-        with st.expander("REVEAL OFFICIAL ANSWER"):
-            st.markdown(parts[1] if len(parts) > 1 else "Check raw output.")
+        
+        with st.expander("DECRYPT ANSWER" if not st.session_state.stealth_mode else "View Details"):
+            st.markdown(parts[1] if len(parts) > 1 else "Data Corrupted.")
     except:
-        st.markdown(st.session_state.current_question)
+        st.markdown(st.session_state.current_intel)
