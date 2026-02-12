@@ -5,7 +5,6 @@ import os
 import random
 import time
 
-# --- PAGE CONFIGURATION ---
 st.set_page_config(
     page_title="CISSP Exam Simulator",
     page_icon="📘",
